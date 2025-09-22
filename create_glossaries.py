@@ -19,6 +19,7 @@ import re
 import sys
 import requests
 from typing import Dict, List, Tuple, Optional
+from pathlib import Path
 
 import deepl
 
@@ -104,33 +105,37 @@ def build_pairs(rows: List[Dict[str, str]], src_col: str, tgt_col: str) -> Dict[
     return pairs
 
 
-def ensure_glossary(
-    translator: deepl.Translator,
-    name: str,
-    source_lang: str,
-    target_lang: str,
-    pairs: Dict[str, str],
-) -> deepl.Glossary:
-    """
-    Create or update a DeepL glossary for (source_lang -> target_lang).
-    If glossary exists (same name + langs), replace entries to keep in sync with the sheet.
-    """
+def ensure_glossary(translator, name: str, source_lang: str, target_lang: str, pairs: dict):
+    # try to find existing glossary
     for g in translator.list_glossaries():
-        if (
-            g.name == name
-            and g.source_lang.upper() == source_lang.upper()
-            and g.target_lang.upper() == target_lang.upper()
-        ):
-            translator.set_glossary_entries(g, entries_tuples=list(pairs.items()))
-            return g
+        if g.name == name and g.source_lang.upper() == source_lang.upper() and g.target_lang.upper() == target_lang.upper():
+            # update if API supports it; otherwise delete+recreate
+            try:
+                translator.set_glossary_entries(g, entries=pairs)  # new SDKs
+                return g
+            except AttributeError:
+                translator.delete_glossary(g.glossary_id)          # old SDKs
+                break
 
+    # create new (or after delete)
     return translator.create_glossary(
         name=name,
         source_lang=source_lang,
         target_lang=target_lang,
-        entries_tuples=list(pairs.items()),
+        entries=pairs,  # dict of source->target
     )
 
+
+def save_pairs_to_csv(pairs: dict, src: str, tgt: str, folder: Path = Path("glossaries")):
+    """Save a glossary mapping src->tgt as CSV into glossaries/ folder."""
+    folder.mkdir(parents=True, exist_ok=True)
+    out_path = folder / f"{src}_{tgt}.csv"
+    with open(out_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([src, tgt])  # header
+        for s, t in pairs.items():
+            writer.writerow([s, t])
+    print(f"Saved local glossary CSV: {out_path}")
 
 def main():
     if "DEEPL_API_KEY" not in os.environ:
@@ -167,32 +172,51 @@ def main():
 
     translator = deepl.Translator(os.environ["DEEPL_API_KEY"])
 
+        # --- Only allow EN->DE glossary for now ---
+    src, tgt = "EN", "DE"
+    src_col, tgt_col = LANG_COLUMNS[src], LANG_COLUMNS[tgt]
+    pairs = build_pairs(rows, src_col=src_col, tgt_col=tgt_col)
+    if pairs:
+        save_pairs_to_csv(pairs, src, tgt)  # keep local CSV copy
+        name = GLOSSARY_NAME.format(src=src, tgt=tgt)
+        print(f"Syncing glossary '{name}' ({src}->{tgt}) with {len(pairs)} entries...")
+        g = ensure_glossary(translator, name=name,
+                            source_lang=src, target_lang=tgt, pairs=pairs)
+        print(f"Glossary ready: {name} (id={g.glossary_id})")
+    else:
+        print("No EN->DE pairs found, nothing to sync.")
+
+    # --- Future when on paid plan ---
     # Build pairwise glossaries for every direction among present languages
-    langs_present = [code for code, col in LANG_COLUMNS.items() if col in headers]
-    created_or_updated: List[Tuple[str, str, str]] = []
+    # langs_present = [code for code, col in LANG_COLUMNS.items() if col in headers]
+    # created_or_updated: List[Tuple[str, str, str]] = []
 
-    for src in langs_present:
-        for tgt in langs_present:
-            if src == tgt:
-                continue
-            src_col = LANG_COLUMNS[src]
-            tgt_col = LANG_COLUMNS[tgt]
-            pairs = build_pairs(rows, src_col=src_col, tgt_col=tgt_col)
-            if not pairs:
-                continue
+    # for src in langs_present:
+    #     for tgt in langs_present:
+    #         if src == tgt:
+    #             continue
+    #         src_col = LANG_COLUMNS[src]
+    #         tgt_col = LANG_COLUMNS[tgt]
+    #         pairs = build_pairs(rows, src_col=src_col, tgt_col=tgt_col)
+    #         if not pairs:
+    #             continue
 
-            name = GLOSSARY_NAME.format(src=src, tgt=tgt)
-            print(f"Syncing glossary '{name}' ({src}->{tgt}) with {len(pairs)} entries...")
-            g = ensure_glossary(translator, name=name, source_lang=src, target_lang=tgt, pairs=pairs)
-            created_or_updated.append((name, g.glossary_id, f"{src}->{tgt}"))
+    #         # Save as CSV locally
+    #         save_pairs_to_csv(pairs, src, tgt)
 
-    if not created_or_updated:
-        print("No glossaries created/updated (no valid pairs found).")
-        sys.exit(0)
+    #         # Push/update to DeepL
+    #         name = GLOSSARY_NAME.format(src=src, tgt=tgt)
+    #         print(f"Syncing glossary '{name}' ({src}->{tgt}) with {len(pairs)} entries...")
+    #         g = ensure_glossary(translator, name=name, source_lang=src, target_lang=tgt, pairs=pairs)
+    #         created_or_updated.append((name, g.glossary_id, f"{src}->{tgt}"))
 
-    print("\nDone. Glossaries ready:")
-    for name, gid, pair in created_or_updated:
-        print(f" - {name} [{pair}]  id={gid}")
+    # if not created_or_updated:
+    #     print("No glossaries created/updated (no valid pairs found).")
+    #     sys.exit(0)
+
+    # print("\nDone. Glossaries ready:")
+    # for name, gid, pair in created_or_updated:
+    #     print(f" - {name} [{pair}]  id={gid}")
 
 
 if __name__ == "__main__":
