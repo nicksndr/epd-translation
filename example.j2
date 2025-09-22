@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ product.name }} – Product Overview</title>
+  <style>
+    /* Keep fonts Unicode-friendly for PDF engines */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans",
+                   "DejaVu Sans", sans-serif;
+      margin: 24px;
+      line-height: 1.45;
+    }
+    h1, h2 { color: #2b5c4e; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    th { background: #2b5c4e; color: white; text-align: left; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace; }
+    pre { background: #f6f8fa; padding: 12px; border-radius: 6px; overflow: auto; }
+    a { color: #1f6feb; text-decoration: underline; }
+    .note { background: #fff9c4; padding: 10px; border-left: 4px solid #fbc02d; }
+  </style>
+</head>
+<body>
+  <h1>{{ product.name }}</h1>
+  <p><strong>Company:</strong> {{ company.name }} — {{ company.country }}</p>
+
+  {% if product.is_premium %}
+  <div class="note">
+    This is a premium configuration with extended warranty and support.
+  </div>
+  {% endif %}
+
+  <h2>Key features</h2>
+  <ul>
+    {% for f in product.features %}
+      <li>{{ f }}</li>
+    {% endfor %}
+  </ul>
+
+  <h2>Technical data</h2>
+  <table>
+    <thead>
+      <tr><th>Property</th><th>Value</th></tr>
+    </thead>
+    <tbody>
+      {% for k, v in product.specs.items() %}
+      <tr><td>{{ k }}</td><td>{{ v }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Usage example</h2>
+  <p>Below is a short code sample. Code blocks and inline <code>identifiers_like_this</code> should not be translated.</p>
+  <pre><code>curl -H "Authorization: Bearer &lt;TOKEN&gt;" https://api.example.com/v1/items</code></pre>
+
+  <p>Learn more on our website:
+    <a href="https://example.com/products/{{ product.slug }}">Product page</a>.
+  </p>
+</body>
+</html>
