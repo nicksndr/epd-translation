@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Render Jinja -> HTML, optionally translate HTML with DeepL, then HTML -> PDF via wkhtmltopdf.
+Render Jinja -> HTML, optionally translate HTML with DeepL, then HTML -> PDF via weasyprint.
 """
 
 from __future__ import annotations
@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 from jinja2 import Environment, FileSystemLoader, select_autoescape, StrictUndefined
 import deepl
+from weasyprint import HTML
 
 IGNORE_TAGS = ["script", "style", "code", "pre"]  # do not translate these blocks
 
@@ -48,9 +49,8 @@ def translate_html(html: str, *, api_key: str, src: str, tgt: str, glossary_id: 
     return res.text if hasattr(res, "text") else res[0].text
 
 # ---------- PDF ----------
-def html_to_pdf(input_html_path: Path, output_pdf_path: Path):
-    # Requires wkhtmltopdf installed (brew install wkhtmltopdf)
-    subprocess.run(["wkhtmltopdf", str(input_html_path), str(output_pdf_path)], check=True)
+def html_to_pdf(input_html_path, output_pdf_path):
+    HTML(filename=str(input_html_path)).write_pdf(str(output_pdf_path))
 
 # ---------- CLI ----------
 def main():
@@ -74,7 +74,7 @@ def main():
     context = {
         "company": {"name": "Emidat", "country": "Norway"},
         "product": {
-            "name": "Low-Carbon AAC Block",
+            "name": "Low-Carbon AAC powder",
             "slug": "low-carbon-aac-block",
             "is_premium": True,
             "features": [
@@ -83,7 +83,7 @@ def main():
                 "Lower embodied carbon than conventional alternatives",
             ],
             "specs": {
-                "Density": "525 kg/m³",
+                "Density": "525 kg/m³", 
                 "Compressive strength": "4.0 MPa",
                 "Declared unit": "1 m² wall, 100 mm thickness",
             },
@@ -138,7 +138,7 @@ def main():
         html_to_pdf(html_for_pdf_path, pdf_path)
         print(f"PDF → {pdf_path}")
     except FileNotFoundError:
-        print("wkhtmltopdf not found. Install it with Homebrew: brew install wkhtmltopdf")
+        print("weasyprint not found. Install it with Homebrew: brew install weasyprint")
         print(f"You can still open the HTML in a browser: {html_for_pdf_path}")
 
 if __name__ == "__main__":
